@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/api/outpaint", "destination": "/api/outpaint" }
+    { "source": "/api/upscale", "destination": "/api/upscale" }
   ]
 }
