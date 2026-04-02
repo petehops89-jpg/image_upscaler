@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>72 SEASONS // TV UPSCALER</title>
   <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <!-- TensorFlow.js required by UpscalerJS -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <!-- ESRGAN Medium 4x model -->
+  <script src="https://cdn.jsdelivr.net/npm/@upscalerjs/esrgan-medium@latest/dist/umd/4x.min.js"></script>
+  <!-- UpscalerJS core -->
+  <script src="https://cdn.jsdelivr.net/npm/upscaler@latest/dist/browser/umd/upscaler.min.js"></script>
+
   <style>
     :root {
       --black: #0a0a0a;
@@ -12,7 +20,7 @@
       --panel: #181818;
       --yellow: #f5c400;
       --yellow-dim: #c49a00;
-      --yellow-glow: rgba(245,196,0,0.18);
+      --yellow-glow: rgba(245,196,0,0.15);
       --text: #e8e8e8;
       --muted: #888;
       --border: #2a2a2a;
@@ -30,7 +38,6 @@
       overflow-x: hidden;
     }
 
-    /* Diagonal stripe background */
     body::before {
       content: '';
       position: fixed;
@@ -39,8 +46,8 @@
         -55deg,
         transparent,
         transparent 40px,
-        rgba(245,196,0,0.025) 40px,
-        rgba(245,196,0,0.025) 41px
+        rgba(245,196,0,0.022) 40px,
+        rgba(245,196,0,0.022) 41px
       );
       pointer-events: none;
       z-index: 0;
@@ -54,23 +61,10 @@
       padding: 16px;
     }
 
-    /* ── HEADER ── */
     header {
       border-bottom: 2px solid var(--yellow);
       padding-bottom: 14px;
       margin-bottom: 20px;
-      position: relative;
-    }
-
-    header::after {
-      content: '';
-      position: absolute;
-      bottom: -5px;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: var(--yellow-dim);
-      opacity: 0.4;
     }
 
     .logo {
@@ -78,19 +72,16 @@
       font-size: clamp(1.4rem, 6vw, 2.2rem);
       color: var(--yellow);
       letter-spacing: 0.12em;
-      text-transform: uppercase;
-      text-shadow:
-        0 0 20px rgba(245,196,0,0.5),
-        0 0 60px rgba(245,196,0,0.2);
+      text-shadow: 0 0 24px rgba(245,196,0,0.45), 0 0 60px rgba(245,196,0,0.15);
       line-height: 1;
     }
 
     .logo span {
       color: var(--text);
-      font-size: 0.45em;
-      letter-spacing: 0.3em;
+      font-size: 0.44em;
+      letter-spacing: 0.28em;
       display: block;
-      margin-top: 4px;
+      margin-top: 5px;
       text-shadow: none;
     }
 
@@ -99,35 +90,41 @@
       background: var(--yellow);
       color: var(--black);
       font-family: 'Black Ops One', sans-serif;
-      font-size: 0.6rem;
-      letter-spacing: 0.2em;
+      font-size: 0.58rem;
+      letter-spacing: 0.18em;
       padding: 3px 8px;
-      margin-top: 8px;
+      margin-top: 10px;
     }
 
-    /* ── PANEL ── */
     .panel {
       background: var(--panel);
       border: 1px solid var(--border);
       border-left: 3px solid var(--yellow);
-      padding: 16px;
-      margin-bottom: 16px;
-      position: relative;
+      padding: 14px 16px;
+      margin-bottom: 14px;
     }
 
     .panel-label {
       font-family: 'Black Ops One', sans-serif;
-      font-size: 0.65rem;
+      font-size: 0.63rem;
       letter-spacing: 0.25em;
       color: var(--yellow);
-      text-transform: uppercase;
       margin-bottom: 12px;
     }
 
-    /* ── FILE INPUT ── */
+    /* Model loading notice */
+    #model-status {
+      font-size: 0.75rem;
+      color: var(--yellow-dim);
+      padding: 10px 0 4px;
+      letter-spacing: 0.08em;
+      min-height: 1.4em;
+    }
+
+    /* File zone */
     .file-zone {
       border: 2px dashed var(--border);
-      padding: 20px 16px;
+      padding: 22px 16px;
       text-align: center;
       cursor: pointer;
       transition: border-color 0.2s, background 0.2s;
@@ -135,7 +132,7 @@
       background: var(--dark);
     }
 
-    .file-zone:hover, .file-zone.active {
+    .file-zone:hover, .file-zone.has-files {
       border-color: var(--yellow);
       background: var(--yellow-glow);
     }
@@ -149,11 +146,7 @@
       height: 100%;
     }
 
-    .file-zone-icon {
-      font-size: 2rem;
-      margin-bottom: 8px;
-      filter: grayscale(1) brightness(0.6);
-    }
+    .file-zone-icon { font-size: 1.8rem; margin-bottom: 6px; }
 
     .file-zone-text {
       font-size: 0.8rem;
@@ -164,8 +157,8 @@
     .file-zone-text strong {
       color: var(--yellow);
       display: block;
-      font-size: 0.9rem;
-      margin-bottom: 4px;
+      font-size: 0.88rem;
+      margin-bottom: 3px;
     }
 
     #file-count {
@@ -176,36 +169,42 @@
       letter-spacing: 0.1em;
     }
 
-    /* ── BATCH SELECTOR ── */
-    .batch-row {
+    /* Scale selector */
+    .options-row {
       display: flex;
-      align-items: center;
-      gap: 12px;
+      gap: 16px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
-    .batch-row label {
-      font-size: 0.78rem;
+    .opt-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .opt-group label {
+      font-size: 0.68rem;
       color: var(--muted);
-      letter-spacing: 0.1em;
+      letter-spacing: 0.12em;
     }
 
-    .batch-row select {
+    .opt-group select {
       background: var(--dark);
       color: var(--yellow);
       border: 1px solid var(--yellow);
       font-family: 'Black Ops One', sans-serif;
       font-size: 0.85rem;
-      padding: 6px 10px;
+      padding: 7px 12px;
       cursor: pointer;
       outline: none;
       appearance: none;
       -webkit-appearance: none;
-      min-width: 70px;
+      min-width: 80px;
       text-align: center;
     }
 
-    /* ── PROCESS BUTTON ── */
+    /* Process button */
     .btn-process {
       width: 100%;
       padding: 16px;
@@ -215,21 +214,21 @@
       font-family: 'Black Ops One', sans-serif;
       font-size: 1.1rem;
       letter-spacing: 0.2em;
-      text-transform: uppercase;
       cursor: pointer;
-      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
-      box-shadow: 0 0 20px rgba(245,196,0,0.3);
       position: relative;
       overflow: hidden;
+      transition: background 0.15s, box-shadow 0.15s;
+      box-shadow: 0 0 24px rgba(245,196,0,0.28);
+      margin-bottom: 14px;
     }
 
     .btn-process::before {
       content: '';
       position: absolute;
       top: 0; left: -100%;
-      width: 60%;
+      width: 55%;
       height: 100%;
-      background: rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.14);
       transform: skewX(-20deg);
       transition: left 0.4s;
     }
@@ -238,94 +237,85 @@
     .btn-process:active { transform: scale(0.98); }
 
     .btn-process:disabled {
-      background: #444;
-      color: #666;
+      background: #333;
+      color: #555;
       cursor: not-allowed;
       box-shadow: none;
     }
 
     .btn-process:disabled::before { display: none; }
 
-    /* ── STATUS BAR ── */
+    /* Status bar */
     .status-bar {
       background: var(--dark);
       border: 1px solid var(--border);
       border-left: 3px solid var(--yellow);
       padding: 10px 14px;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: var(--muted);
       min-height: 42px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 16px;
+      gap: 10px;
+      margin-bottom: 12px;
     }
 
-    .status-dot {
-      width: 8px;
-      height: 8px;
+    .dot {
+      width: 8px; height: 8px;
       border-radius: 50%;
       background: var(--muted);
       flex-shrink: 0;
       transition: background 0.3s;
     }
 
-    .status-dot.active {
-      background: var(--yellow);
-      animation: pulse 1s infinite;
-    }
-
-    .status-dot.done { background: var(--green); }
-    .status-dot.error { background: var(--red); }
+    .dot.active { background: var(--yellow); animation: pulse 1s infinite; }
+    .dot.done   { background: var(--green); animation: none; }
+    .dot.error  { background: var(--red); animation: none; }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+      50% { opacity: 0.25; }
     }
 
-    /* ── PROGRESS ── */
+    /* Progress */
     .progress-wrap {
-      height: 4px;
+      height: 3px;
       background: var(--border);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       overflow: hidden;
       display: none;
     }
 
-    .progress-wrap.visible { display: block; }
+    .progress-wrap.show { display: block; }
 
     .progress-bar {
       height: 100%;
       background: var(--yellow);
       width: 0%;
-      transition: width 0.4s ease;
-      box-shadow: 0 0 10px var(--yellow);
+      transition: width 0.35s ease;
+      box-shadow: 0 0 8px var(--yellow);
     }
 
-    /* ── LOG ── */
-    .log-wrap {
-      display: none;
-      margin-bottom: 16px;
-    }
-
-    .log-wrap.visible { display: block; }
+    /* Log */
+    .log-wrap { display: none; margin-bottom: 14px; }
+    .log-wrap.show { display: block; }
 
     .log-toggle {
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       color: var(--yellow-dim);
       cursor: pointer;
       letter-spacing: 0.1em;
-      margin-bottom: 6px;
+      margin-bottom: 5px;
       user-select: none;
     }
 
     #log {
-      background: #0d0d0d;
+      background: #0c0c0c;
       border: 1px solid var(--border);
       color: var(--green);
-      font-size: 0.68rem;
+      font-size: 0.67rem;
       padding: 10px;
-      max-height: 160px;
+      max-height: 150px;
       overflow-y: auto;
       white-space: pre-wrap;
       word-break: break-all;
@@ -335,7 +325,7 @@
 
     #log.open { display: block; }
 
-    /* ── GALLERY ── */
+    /* Gallery */
     #gallery { display: flex; flex-direction: column; gap: 16px; }
 
     .card {
@@ -347,27 +337,24 @@
     }
 
     @keyframes slideIn {
-      from { opacity: 0; transform: translateY(12px); }
+      from { opacity: 0; transform: translateY(10px); }
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    .card img {
-      width: 100%;
-      display: block;
-    }
+    .card img { width: 100%; display: block; }
 
     .card-info {
       padding: 8px 12px;
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       color: var(--muted);
       border-bottom: 1px solid var(--border);
-      letter-spacing: 0.05em;
     }
 
     .card-info strong {
       color: var(--yellow);
       display: block;
       margin-bottom: 2px;
+      font-size: 0.75rem;
     }
 
     .dl-btn {
@@ -377,42 +364,36 @@
       background: transparent;
       color: var(--yellow);
       border: none;
-      border-top: 1px solid var(--border);
       font-family: 'Black Ops One', sans-serif;
-      font-size: 0.85rem;
-      letter-spacing: 0.18em;
+      font-size: 0.82rem;
+      letter-spacing: 0.16em;
       cursor: pointer;
       text-align: center;
       transition: background 0.15s, color 0.15s;
     }
 
-    .dl-btn:hover {
-      background: var(--yellow);
-      color: var(--black);
-    }
+    .dl-btn:hover { background: var(--yellow); color: var(--black); }
 
-    /* ── FOOTER ── */
     footer {
       margin-top: 32px;
       padding-top: 12px;
       border-top: 1px solid var(--border);
-      font-size: 0.65rem;
-      color: #444;
+      font-size: 0.62rem;
+      color: #3a3a3a;
       letter-spacing: 0.15em;
       text-align: center;
     }
   </style>
 </head>
 <body>
-
 <div class="container">
 
   <header>
     <div class="logo">
       72 SEASONS
-      <span>// TV UPSCALER //</span>
+      <span>// TV UPSCALER — ON DEVICE AI //</span>
     </div>
-    <div class="season-tag">1920 × 1080 &nbsp;·&nbsp; REAL-ESRGAN &nbsp;·&nbsp; AI ENHANCED</div>
+    <div class="season-tag">ESRGAN · BROWSER GPU · FREE · NO API</div>
   </header>
 
   <!-- FILE SELECT -->
@@ -423,233 +404,285 @@
       <div class="file-zone-icon">⚡</div>
       <div class="file-zone-text">
         <strong>Tap to select images</strong>
-        4:3 → black bars · 16:9 → full screen · no stretching
+        50–120k JPEGs upscaled 4x on your device · no upload needed
       </div>
     </div>
     <div id="file-count"></div>
+    <div id="model-status">⏳ Loading ESRGAN model...</div>
   </div>
 
-  <!-- SETTINGS -->
+  <!-- OPTIONS -->
   <div class="panel">
-    <div class="panel-label">◈ Batch Size</div>
-    <div class="batch-row">
-      <label>PARALLEL UPLOADS</label>
-      <select id="batchSize">
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="5" selected>5</option>
-      </select>
-      <span style="font-size:0.72rem;color:var(--muted);">images at once</span>
+    <div class="panel-label">◈ Settings</div>
+    <div class="options-row">
+      <div class="opt-group">
+        <label>UPSCALE FACTOR</label>
+        <select id="scaleFactor">
+          <option value="2">2x</option>
+          <option value="4" selected>4x</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <label>BATCH SIZE</label>
+        <select id="batchSize">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <label>TV LETTERBOX</label>
+        <select id="letterbox">
+          <option value="yes" selected>1920×1080</option>
+          <option value="no">Off</option>
+        </select>
+      </div>
     </div>
   </div>
 
-  <!-- PROCESS -->
-  <button class="btn-process" id="runBtn" onclick="processAll()">
+  <button class="btn-process" id="runBtn" onclick="processAll()" disabled>
     ⚡ &nbsp; UPSCALE TO TV
   </button>
 
-  <!-- STATUS -->
   <div class="status-bar">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Ready — select images to begin</span>
+    <div class="dot" id="dot"></div>
+    <span id="statusText">Loading model — please wait...</span>
   </div>
 
-  <!-- PROGRESS -->
   <div class="progress-wrap" id="progressWrap">
     <div class="progress-bar" id="progressBar"></div>
   </div>
 
-  <!-- LOG -->
   <div class="log-wrap" id="logWrap">
     <div class="log-toggle" onclick="toggleLog()">▶ DEBUG LOG</div>
     <pre id="log"></pre>
   </div>
 
-  <!-- GALLERY -->
   <div id="gallery"></div>
 
   <footer>METALLICA · 72 SEASONS · BLACKENED RECORDINGS · 2023</footer>
-
 </div>
 
 <script>
-var TV_W = 1920;
-var TV_H = 1080;
-var totalFiles = 0;
-var doneCount = 0;
+var TV_W = 1920, TV_H = 1080;
+var upscaler = null;
+var modelReady = false;
+var totalDone = 0, totalFiles = 0;
 
-// File count display
+// ── Init UpscalerJS with ESRGAN Medium 4x ──────────────────────────────────
+function initModel() {
+  try {
+    upscaler = new Upscaler({
+      model: ESRGANMedium4x  // global from the CDN script
+    });
+    // warm up with a tiny tensor so first real image is faster
+    upscaler.warmup([{ patchSize: 64, padding: 2 }]).then(function() {
+      modelReady = true;
+      document.getElementById('model-status').textContent = '✓ ESRGAN 4x model ready';
+      document.getElementById('runBtn').disabled = false;
+      setStatus('Ready — select images to begin', '');
+    }).catch(function(err) {
+      document.getElementById('model-status').textContent = '⚠ Warmup skipped: ' + err.message;
+      modelReady = true;
+      document.getElementById('runBtn').disabled = false;
+      setStatus('Ready — select images to begin', '');
+    });
+  } catch(e) {
+    document.getElementById('model-status').textContent = '✗ Model load failed: ' + e.message;
+    setStatus('Model failed to load', 'error');
+  }
+}
+
+// ── File select ────────────────────────────────────────────────────────────
 document.getElementById('files').addEventListener('change', function() {
   var n = this.files.length;
   totalFiles = n;
-  document.getElementById('file-count').textContent = n > 0 ? '▶ ' + n + ' file' + (n > 1 ? 's' : '') + ' selected' : '';
-  var zone = document.getElementById('fileZone');
-  zone.classList.toggle('active', n > 0);
+  document.getElementById('file-count').textContent = n > 0
+    ? '▶ ' + n + ' file' + (n > 1 ? 's' : '') + ' selected'
+    : '';
+  document.getElementById('fileZone').classList.toggle('has-files', n > 0);
 });
 
+// ── UI helpers ─────────────────────────────────────────────────────────────
 function toggleLog() {
   var el = document.getElementById('log');
-  var toggle = document.querySelector('.log-toggle');
+  var t  = document.querySelector('.log-toggle');
   el.classList.toggle('open');
-  toggle.textContent = el.classList.contains('open') ? '▼ DEBUG LOG' : '▶ DEBUG LOG';
+  t.textContent = el.classList.contains('open') ? '▼ DEBUG LOG' : '▶ DEBUG LOG';
 }
 
 function log(msg) {
   var wrap = document.getElementById('logWrap');
-  var el = document.getElementById('log');
-  wrap.classList.add('visible');
+  var el   = document.getElementById('log');
+  wrap.classList.add('show');
   el.textContent += msg + '\n';
   el.scrollTop = el.scrollHeight;
 }
 
 function setStatus(msg, state) {
   document.getElementById('statusText').textContent = msg;
-  var dot = document.getElementById('statusDot');
-  dot.className = 'status-dot' + (state ? ' ' + state : '');
+  var dot = document.getElementById('dot');
+  dot.className = 'dot' + (state ? ' ' + state : '');
 }
 
 function setProgress(done, total) {
-  var wrap = document.getElementById('progressWrap');
-  var bar = document.getElementById('progressBar');
-  wrap.classList.add('visible');
-  bar.style.width = (total > 0 ? Math.round((done / total) * 100) : 0) + '%';
+  document.getElementById('progressWrap').classList.add('show');
+  document.getElementById('progressBar').style.width =
+    (total > 0 ? Math.round((done / total) * 100) : 0) + '%';
 }
 
-// Letterbox: scale to fill 1080px tall, black bars by aspect ratio
-function letterbox(file) {
-  return new Promise(function(resolve) {
+// ── Letterbox onto 1920×1080 black canvas ──────────────────────────────────
+function letterbox(imgEl) {
+  var srcW = imgEl.naturalWidth, srcH = imgEl.naturalHeight;
+  var scale = TV_H / srcH;
+  var sw = Math.round(srcW * scale), sh = TV_H;
+  if (sw > TV_W) { scale = TV_W / srcW; sw = TV_W; sh = Math.round(srcH * scale); }
+
+  var canvas = document.createElement('canvas');
+  canvas.width = TV_W; canvas.height = TV_H;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, TV_W, TV_H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(imgEl, Math.round((TV_W - sw) / 2), Math.round((TV_H - sh) / 2), sw, sh);
+  return canvas;
+}
+
+// ── Load file into an Image element ───────────────────────────────────────
+function loadImage(file) {
+  return new Promise(function(resolve, reject) {
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = new Image();
-      img.onload = function() {
-        var srcW = img.width, srcH = img.height;
-        var scale = TV_H / srcH;
-        var scaledW = Math.round(srcW * scale);
-        var scaledH = TV_H;
-
-        if (scaledW > TV_W) {
-          scale = TV_W / srcW;
-          scaledW = TV_W;
-          scaledH = Math.round(srcH * scale);
-        }
-
-        var canvas = document.createElement('canvas');
-        canvas.width = TV_W;
-        canvas.height = TV_H;
-        var ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, TV_W, TV_H);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, Math.round((TV_W - scaledW) / 2), Math.round((TV_H - scaledH) / 2), scaledW, scaledH);
-
-        log('[' + file.name + '] ' + srcW + 'x' + srcH + ' → placed ' + scaledW + 'x' + scaledH + ' on 1920x1080');
-        resolve({ base64: canvas.toDataURL('image/png').split(',')[1], name: file.name });
-      };
+      img.onload = function() { resolve(img); };
+      img.onerror = reject;
       img.src = e.target.result;
     };
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
 
-// Send to Real-ESRGAN via Vercel proxy
-function upscale(base64, name) {
-  log('[' + name + '] Sending to Real-ESRGAN...');
-  return fetch('/api/upscale', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageBase64: base64 })
-  }).then(function(res) {
-    log('[' + name + '] HTTP ' + res.status);
-    return res.json();
-  }).then(function(data) {
-    if (data.error) throw new Error(data.error);
-    log('[' + name + '] ✓ Upscaled');
-    return data.finalImage;
-  });
-}
-
-function addCard(base64, filename, origName) {
+// ── Add result card with download ─────────────────────────────────────────
+function addCard(dataUrl, filename, infoText) {
   var imgEl = document.createElement('img');
-  imgEl.src = 'data:image/png;base64,' + base64;
+  imgEl.src = dataUrl;
   imgEl.loading = 'lazy';
 
-  var infoDiv = document.createElement('div');
-  infoDiv.className = 'card-info';
-  infoDiv.innerHTML = '<strong>' + origName + '</strong>Real-ESRGAN · 1920×1080 · Ready for TV';
+  var info = document.createElement('div');
+  info.className = 'card-info';
+  info.innerHTML = '<strong>' + filename + '</strong>' + infoText;
 
-  var dlBtn = document.createElement('button');
-  dlBtn.className = 'dl-btn';
-  dlBtn.textContent = '⬇  DOWNLOAD  ' + filename;
-  dlBtn.onclick = (function(b64, fn) {
+  var btn = document.createElement('button');
+  btn.className = 'dl-btn';
+  btn.textContent = '⬇  DOWNLOAD';
+  btn.onclick = (function(url, fn) {
     return function() {
-      var bytes = atob(b64);
-      var arr = new Uint8Array(bytes.length);
-      for (var i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-      var blob = new Blob([arr], { type: 'image/png' });
-      var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
-      a.href = url;
-      a.download = fn;
+      a.href = url; a.download = fn;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
     };
-  })(base64, filename);
+  })(dataUrl, filename);
 
   var card = document.createElement('div');
   card.className = 'card';
   card.appendChild(imgEl);
-  card.appendChild(infoDiv);
-  card.appendChild(dlBtn);
+  card.appendChild(info);
+  card.appendChild(btn);
   document.getElementById('gallery').appendChild(card);
 }
 
+// ── Process one file ───────────────────────────────────────────────────────
+async function processFile(file, idx) {
+  var doLetterbox = document.getElementById('letterbox').value === 'yes';
+  log('\n=== ' + file.name + ' (' + Math.round(file.size / 1024) + 'kb) ===');
+
+  var img = await loadImage(file);
+  log('Original: ' + img.naturalWidth + 'x' + img.naturalHeight);
+
+  // ESRGAN upscale — runs entirely on device via WebGL
+  log('Running ESRGAN 4x...');
+  var upscaledDataUrl = await upscaler.upscale(img, {
+    patchSize: 64,
+    padding: 2,
+    output: 'base64',
+    progressCallback: function(pct) {
+      // patch-level progress — update status
+      setStatus(
+        'Upscaling ' + file.name + ' — ' + Math.round(pct * 100) + '%',
+        'active'
+      );
+    }
+  });
+
+  log('Upscale complete');
+
+  var finalUrl = upscaledDataUrl;
+
+  if (doLetterbox) {
+    // Draw upscaled result onto 1920×1080 letterbox canvas
+    var upscaledImg = new Image();
+    await new Promise(function(res) {
+      upscaledImg.onload = res;
+      upscaledImg.src = upscaledDataUrl;
+    });
+    var canvas = letterbox(upscaledImg);
+    finalUrl = canvas.toDataURL('image/jpeg', 0.92);
+    log('Letterboxed to 1920x1080');
+  }
+
+  var outName = 'tv_' + String(idx + 1).padStart(3, '0') + '_' +
+                file.name.replace(/\.[^.]+$/, '') + '.jpg';
+
+  var sizeKb = Math.round((finalUrl.length * 0.75) / 1024);
+  addCard(finalUrl, outName, 'ESRGAN 4x · ' + (doLetterbox ? '1920×1080 · ' : '') + '~' + sizeKb + 'kb');
+  log('Done — ~' + sizeKb + 'kb');
+}
+
+// ── Main batch loop ────────────────────────────────────────────────────────
 async function processAll() {
-  var files = document.getElementById('files').files;
-  var btn = document.getElementById('runBtn');
-  var BATCH = parseInt(document.getElementById('batchSize').value, 10);
+  if (!modelReady) { setStatus('Model not ready yet', 'error'); return; }
+
+  var files   = document.getElementById('files').files;
+  var BATCH   = parseInt(document.getElementById('batchSize').value, 10);
+  var btn     = document.getElementById('runBtn');
 
   document.getElementById('gallery').innerHTML = '';
   document.getElementById('log').textContent = '';
-  document.getElementById('logWrap').classList.remove('visible');
-  document.getElementById('progressWrap').classList.remove('visible');
-  doneCount = 0;
+  document.getElementById('logWrap').classList.remove('show');
+  document.getElementById('progressWrap').classList.remove('show');
+  totalDone = 0;
 
-  if (!files.length) {
-    setStatus('No files selected — tap Load Images first', 'error');
-    return;
-  }
+  if (!files.length) { setStatus('No files selected', 'error'); return; }
 
   totalFiles = files.length;
   btn.disabled = true;
-  setStatus('Initialising — ' + totalFiles + ' image' + (totalFiles > 1 ? 's' : '') + ' queued', 'active');
   setProgress(0, totalFiles);
 
   var fileArr = Array.from(files);
 
   for (var i = 0; i < fileArr.length; i += BATCH) {
     var batch = fileArr.slice(i, i + BATCH);
-    var batchNums = (i + 1) + (batch.length > 1 ? '–' + (i + batch.length) : '');
-    setStatus('Processing ' + batchNums + ' of ' + totalFiles + ' — batch of ' + batch.length, 'active');
+    var nums  = (i + 1) + (batch.length > 1 ? '–' + (i + batch.length) : '');
+    setStatus('Processing ' + nums + ' of ' + totalFiles, 'active');
 
+    // Note: ESRGAN is GPU-bound so true parallelism won't help much,
+    // but we still honour the batch setting for future-proofing
     await Promise.all(batch.map(function(file, j) {
       var idx = i + j;
-      return letterbox(file)
-        .then(function(lb) { return upscale(lb.base64, file.name); })
-        .then(function(upscaled) {
-          var outName = 'tv_' + String(idx + 1).padStart(3, '0') + '_' + file.name.replace(/\.[^.]+$/, '') + '.png';
-          addCard(upscaled, outName, file.name);
-          doneCount++;
-          setProgress(doneCount, totalFiles);
+      return processFile(file, idx)
+        .then(function() {
+          totalDone++;
+          setProgress(totalDone, totalFiles);
         })
         .catch(function(err) {
           log('[ERROR] ' + file.name + ': ' + err.message);
-          doneCount++;
-          setProgress(doneCount, totalFiles);
+          totalDone++;
+          setProgress(totalDone, totalFiles);
         });
     }));
   }
@@ -657,7 +690,9 @@ async function processAll() {
   setStatus('Complete — ' + totalFiles + ' image' + (totalFiles > 1 ? 's' : '') + ' processed', 'done');
   btn.disabled = false;
 }
-</script>
 
+// Boot
+window.addEventListener('load', initModel);
+</script>
 </body>
 </html>
